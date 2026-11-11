@@ -1,0 +1,96 @@
+Simulated Scenario 
+A small Nairobi office has 6 staff members.3 departments, Accounts, Sales and HR ,share a switch and are on the same subnet.
+Each office has 2 PCs ,Acccounts PCs can see Sales and HR PCs can see the other to, broadcast traffic reach every device.Owner wants the 3 departments separated,while still letting them reach other through the router
+##Problem##
+Every department can see each other,broadcast traffic hit each other
+SW1 config
+SW1(config)#vlan 10
+SW1(config-vlan)#name SALES
+SW1(config-vlan)#vlan 20
+SW1(config-vlan)#name HR
+SW1(config-vlan)#vlan 30
+SW1(config-vlan)#vlan 10
+SW1(config-vlan)#name ACCOUNTS
+SW1(config-vlan)#vlan 30 name SALES
+Port assigning to Vlan
+SW1(config-vlan)#int fa0/1
+SW1(config-if)#sw mode access
+SW1(config-if)#sw acc vlan 10
+SW1(config-if)#int fa0/2
+SW1(config-if)#sw mode access
+SW1(config-if)#sw acc vlan 10
+SW1(config-if)#int range fa0/3-4
+SW1(config-if-range)#sw mode acc
+SW1(config-if-range)#sw acc vlan 20
+SW1(config-if-range)#int range fa0/5-6
+SW1(config-if-range)#sw mode acc
+SW1(config-if-range)#sw acc vlan 30
+SW1(config-if-range)#do sh vlan 
+###DO SHOW VLAN BRIEF##
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Fa0/7, Fa0/8, Fa0/9, Fa0/10
+                                                Fa0/11, Fa0/12, Fa0/13, Fa0/14
+                                                Fa0/15, Fa0/16, Fa0/17, Fa0/18
+                                                Fa0/19, Fa0/20, Fa0/21, Fa0/22
+                                                Fa0/23, Fa0/24, Gig0/1, Gig0/2
+10   ACCOUNTS                         active    Fa0/1, Fa0/2
+20   HR                               active    Fa0/3, Fa0/4
+30   SALES                            active    Fa0/5, Fa0/6
+
+###IP Readdresing to much vlan### 
+PC       IP            Gateway
+PC1     192.168.10.11  192.168.10.1
+PC2     192.168.10.12  192.168.10.1
+PC3     192.168.20.11  192.168.20.1
+PC4     192.168.20.12  192.168.20.1
+PC5     192.168.30.11  192.168.30.1
+PC6     192.168.30.12  192.168.30.1
+
+##SH INTERFACES TRUNK##
+Port        Mode         Encapsulation  Status        Native vlan
+Gig0/1      on           802.1q         trunking      1001
+
+Port        Vlans allowed on trunk
+Gig0/1      1-1005
+
+Port        Vlans allowed and active in management domain
+Gig0/1      1,10,20,30
+
+Port        Vlans in spanning tree forwarding state and not pruned
+Gig0/1      1,10,20,30
+
+
+##SH IP INTERFACES BRIEF##
+R1(config)#do sh ip int br
+Interface              IP-Address      OK? Method Status                Protocol 
+GigabitEthernet0/0     unassigned      YES unset  up                    up 
+GigabitEthernet0/0.10  192.168.10.1    YES manual up                    up 
+GigabitEthernet0/0.20  192.168.20.1    YES manual up                    up 
+GigabitEthernet0/0.30  192.168.30.1    YES manual up                    up 
+GigabitEthernet0/1     unassigned      YES unset  administratively down down 
+Vlan1                  unassigned      YES unset  administratively down down
+
+
+###ERRORS ENCOUNTERED###
+I configured native vlan on subinterface meant for vlan 10 
+int g0/0.10
+en dot1q 1001 vl 
+found out in the run config 
+   #CORRECTION#
+Cancelled cmd through cmd 'no'
+int g0/0.10
+no en dot1q 1001 vlan
+and
+int g0/0.10
+en dot1q 10
+ip add 192.168.10.1 255.255.255.0
+##WHAT I LEARNT ## 
+Do not configure native vlans on sub-interfaces meant for another vlan ,configure vlan on its own subinterface and make sure it matches with the native vlan on the sw
+##R1 NATIVE VLAN Config##
+int g0/0.99
+en dot1q 99 native
+ip add 192.168.99.1 255.255.255.0
+##SW NATIVE VLAN##
+int g0/1
+sw trunk native vlan 99
