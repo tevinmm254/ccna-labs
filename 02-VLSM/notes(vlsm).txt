@@ -1,0 +1,105 @@
+Re-address of Nairobi Office
+Ticket#002
+Office is out of room on its flat 192.168.X.X plan and wastes addresses the owner wanted to assign addresses in accordance to the hosts needed.
+One block was given to work with 192.168.50.0/24.It must cover
+
+Segment               VLAN  Hosts needed
+Sales                  10        50
+Accounts               20        25
+HR                     30        12
+Servers                40        5
+Link to ISP router (R2) n/a      2
+
+There should also be room left for future expansion of 30 hosts.
+
+
+###SOLUTION###
+Assign each segment subnets in respect to the number of hosts needed:
+Segment(Hosts)| VLAN| Network/Prefix   | Usable Range | Broadcast      | Gateway
+Sales(50)       10     192.168.50.0/26    .1-.62        192.168.50.63   192.168.50.1
+Accounts(25)    20     192.168.50.64/27   .65-.94       192.168.50.95   192.168.50.65
+HR(12)          30     192.168.50.96/28   .97-.110      192.168.50.111  192.168.50.97
+Servers(5)      40     192.168.50.112/29  .113-.118     192.168.50.119  192.168.50.113
+Link to ISP(2)  n/a    192.168.50.120/30   .121-.122    192.168.50.123       -
+
+
+Link to ISP Routers- R1-192.168.50.121 R2-192.168.50.122
+
+   ##Future Expansion##
+ 2^n=number of hosts=2^6=64(64-2=62-> the number of usable add) .128 is a multiple of 64.
+Cannot use /27 since we need 30 hosts since /27=30 hosts but the gateway is not part of the hosts so it gives 29 hosts.
+ 30hosts- 192.168.50.128/26-netwrok Add  192.168.50.129-1st usable add  192.168.50.190-Last usable 192.168.50.191-Broadcast Add.Gateway-192.168.50.129
+
+    ##GAP##
+The address 192.168.50.124 to 192.168.50.127 was left as a gap and it can be added to another subnet there are 4 addresses 124,125,126,127 .
+2^2=4 32-2=30 prefix = /30 network=192.168.50.124/30 Range=.125-126 Broadcast=192.168.50.127
+
+   ##LeftOver##
+Addresses 192.168.50.192-192.168.50.255 were left I chose one subnet to put it all in
+.192 to .255 = 64 add, 2^6 = 64 32-6=26 Prefix=/26
+192.168.50.192/26-Network Range=.193-.254 Broadcast =192.168.50.255 
+##TRADEOFFS##
+Servers segment exactly 5 usable hosts no growth room.
+R2 simulates an upstream router. A real ISP link would need NAT for private addresses, which I’ll cover in a later lab.
+
+###CONFIGURATION###
+Configured and added SW2 to the existing network and connected vlan40 and its devices to it, also added the already existing vlan 10,20 and 30 on SW1 to SW2.
+##vlan port cl add pic##
+##SW1 vl to SW2 add pic##
+
+I then made sure to connect SW1 to SW2 using a Gigabit ethernet connection .Then made G0/1 port of SW2 into a trunk to carry multiple vlans.Also made Sw1 g0/2 a trunk port.
+##sw2 g0/1 int tr pic##
+
+Made sure that the native vlans matched on both switches
+##sw1 native vl pic##
+##sw2 native vl pic##
+
+On R1 I configured the sub-interfaces of each vlan 
+##R1 subinterfaces##
+Added the native vlan sub-interface 
+##R1 native subinterface pic##
+Then added R2 and connected it to R2 each interface I gave an ip address R1.121 and R2-.122
+##R1 g0/2 ip add pic##
+##R2 g0/1 ip add pic##
+
+Configured on R1 default route to R2 for external network traffic to go to R2
+##default route conf pic##
+
+Since R1 has the connected routes for each VLAN, so R2 only needs one summary route pointing back to R1.
+Command used - ip route 192.168.50.0 255.255.255.0 192.168.50.121
+##R2 route summary pic##
+
+##R1 routing table pic##
+##R2 routing table pic##
+
+##PINGS TO DIFFERENT SEGMENTS##
+##Sales to Acc pic##
+##Sales to HR pic##
+##Sales to SERVERS pic##
+##Sales to R2##
+##Accounts to HR##
+##Acc to SRv##
+##ACC to R2##
+##HR to Srv##
+##Hr to R2##
+##Srv to R2##
+
+###ERRORS ENCOUNTERED###
+1.Used static route summary without the Null0 command at the end of the configuration
+This led to a loop when an unused subnet in /24 is used eg 192.168.50.200 if pinged it will reach R1 since it unrecognized it will be treated as a default network which I configured to be sent to R2, R2 sees it part of /24 so it sends it back. The loops continue till TTL (time to live) is up.
+Fix: On R1: Ip route 192.168.50.0 255.255.255.0 null0. It tells R1, "if any address from this subnet arrives and I don't know it drop"
+##tracert loop##
+##tracert fix##
+###static summary route pic###
+
+2.Looked at switch 2 and didn't see the other vlans only vlan 40 
+Forgot to add vlans on SW1 to SW2 but remembered when I ran command. sh vlan brief. On switch 2
+added vlan by creating them on switch 2 .vlan number,then name <vlan name>
+##sw2 vls##
+##sh vl br pic ##
+
+3.Conflicted on whether to give native vlan an Ip address but later saw there is no need since it doesn't have any host Living in it I just configured it on the switches and a sub interface on R1.The native vlan decides which vlan traffic crosses the trunk untagged.
+Lessons 
+A subnet must start on a multiple of its block size, so you can’t always use the next free address.
+A summary route needs a Null0 partner on the other router, or unused addresses loop.
+VLANs must exist on every switch the trunk carries them to.
